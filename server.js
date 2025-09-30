@@ -19,6 +19,11 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+// Trust proxy when deployed (for platforms like Render, Heroku, etc.)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Security middleware
 app.use(helmet());
 
@@ -35,12 +40,29 @@ app.use('/api/', limiter);
 
 // CORS configuration
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:3001', // Allow both common dev ports
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      // Add your deployed frontend URL here when you deploy the frontend
+    ];
+    
+    // In production, be more permissive for testing (you should restrict this later)
+    if (process.env.NODE_ENV === 'production') {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionSuccessStatus: 200,
 };
